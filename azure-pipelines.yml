@@ -1,0 +1,65 @@
+
+parameters:
+  - name: env
+    type: string
+    default: vulnerable
+    values:
+      - vulnerable
+      - secure
+
+resources:
+  repositories:
+    - repository: repoFormulario
+      type: git
+      name: 'Proyecto de Prueba Formulario/repositorioFormTesting'
+      ref: main
+      trigger:
+        branches:
+          include:
+            - main
+
+pool:
+  name: 'MipoolLocal'
+
+# Variables basadas en parámetro
+variables:
+  - name: expect.sqli
+    ${{ if eq(parameters.env, 'vulnerable') }}:
+      value: true
+    ${{ if eq(parameters.env, 'secure') }}:
+      value: false
+
+  - name: webdriver.base.url
+    ${{ if eq(parameters.env, 'vulnerable') }}:
+      value: 'http://localhost/repositorioFormTesting/src/webapp/vulnerable'
+    ${{ if eq(parameters.env, 'secure') }}:
+      value: 'http://localhost/repositorioFormTesting/src/webapp/secure'
+
+steps:
+  - script: |
+      echo "Entorno seleccionado: ${{ parameters.env }}"
+      echo "Java:"
+      java -version
+      echo "Maven:"
+      mvn -version
+    displayName: 'Verificar Java y Maven'
+
+  - task: Maven@3
+    displayName: 'Ejecutar pruebas'
+    inputs:
+      mavenPomFile: 'pom.xml'
+      mavenOptions: '-Xmx1024m'
+      options: >
+        -Dwebdriver.base.url=$(webdriver.base.url)
+        -Dexpect.sqli=$(expect.sqli)
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '1.17'
+      jdkArchitectureOption: 'x64'
+      goals: 'clean verify'
+
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publicar reportes Serenity'
+    inputs:
+      PathtoPublish: 'target/site/serenity'
+      ArtifactName: 'reportes-serenity'
+      publishLocation: 'Container'
